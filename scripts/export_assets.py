@@ -78,12 +78,16 @@ def etape1(clean: pd.DataFrame) -> None:
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 4))
     sns.boxplot(data=clean, x="month", y="t2m", ax=axes[0]).set(title="Cycle saisonnier — t2m (°C)")
-    annuel = clean.groupby("year")["t2m"].mean()
-    pente = np.polyfit(annuel.index, annuel.values, 1)
-    axes[1].plot(annuel.index, annuel.values, marker="o")
-    axes[1].plot(annuel.index, np.poly1d(pente)(annuel.index), "--", color="crimson",
+    # La tendance se calcule sur les années complètes : une année tronquée
+    # (ex. janvier-septembre) a une moyenne biaisée vers le haut.
+    annuel = pp.complete_years(clean).groupby("year")["t2m"].mean()
+    annees = annuel.index.to_numpy(float)
+    pente = np.polyfit(annees, annuel.values, 1)
+    axes[1].plot(annees, annuel.values, marker="o")
+    axes[1].plot(annees, np.poly1d(pente)(annees), "--", color="crimson",
                  label=f"tendance : {pente[0]:+.3f} °C/an")
-    axes[1].set(title="Température moyenne annuelle (°C)", xlabel="année")
+    axes[1].set(title=f"Température moyenne annuelle (°C) — années complètes "
+                      f"{int(annees[0])}-{int(annees[-1])}", xlabel="année")
     axes[1].legend()
     fig.tight_layout()
     save_fig(fig, "01_saisonnalite_tendance")

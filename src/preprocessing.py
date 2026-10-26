@@ -20,13 +20,20 @@ def open_raw(path=None) -> xr.Dataset:
     ds = xr.open_dataset(path or C.FILE_RAW)
     if "valid_time" in ds.coords:
         ds = ds.rename({"valid_time": "time"})
-    if "expver" in ds.dims:                      # ERA5T mélangé aux données finales
+    if "expver" in ds.dims:                      # ERA5T empilé avec les données finales
         ds = ds.mean("expver", skipna=True)
+
     present = [v for v in C.SHORT_NAMES if v in ds.data_vars]
-    missing = set(C.SHORT_NAMES) - set(present)
+    missing = [v for v in C.SHORT_NAMES if v not in present]
     if missing:
-        print(f"attention — variables absentes du NetCDF : {sorted(missing)}")
-    return ds[present]
+        print(f"ATTENTION — variables absentes du NetCDF : {missing}. "
+              f"Le reste de la chaîne travaillera sans elles.")
+    out = ds[present]
+
+    # `number` et `expver` arrivent en coordonnées scalaires ou par pas de temps
+    # selon l'export CDS ; elles pollueraient le DataFrame long.
+    out = out.drop_vars([c for c in ("number", "expver") if c in out.coords])
+    return out
 
 
 def coarsen(ds: xr.Dataset, factor: int = C.COARSEN_FACTOR) -> xr.Dataset:
@@ -105,6 +112,22 @@ def add_calendar(df: pd.DataFrame) -> pd.DataFrame:
     out["year"] = out["time"].dt.year
     out["month"] = out["time"].dt.month
     return out
+
+
+def complete_years(df: pd.DataFrame, min_months: int = 12) -> pd.DataFrame:
+    """Restreint aux années disposant des 12 mois.
+
+    Une année partielle biaise toute moyenne annuelle : si seuls janvier à
+    septembre sont présents, la moyenne est tirée vers le haut par l'absence
+    des mois froids, ce qui fausse la tendance pluriannuelle.
+    """
+    n = df.groupby("year")["month"].nunique()
+    gardees = n[n >= min_months].index
+    ecartees = sorted(set(n.index) - set(gardees))
+    if ecartees:
+        print(f"[info] années incomplètes écartées du calcul de tendance : "
+              f"{ecartees} ({', '.join(f'{y}: {n[y]} mois' for y in ecartees)})")
+    return df[df["year"].isin(gardees)]
 
 
 def describe(df: pd.DataFrame) -> pd.DataFrame:

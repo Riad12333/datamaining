@@ -104,7 +104,9 @@ def main() -> None:
 
     cycle = clean.groupby("month")["t2m"].mean()
     amplitude = float(cycle.max() - cycle.min())
-    annuel = clean.groupby("year")["t2m"].mean()
+    completes = pp.complete_years(clean)
+    annees_partielles = sorted(set(clean["year"]) - set(completes["year"]))
+    annuel = completes.groupby("year")["t2m"].mean()
     annees = annuel.index.to_numpy(dtype=float)
     pente, ordonnee = np.polyfit(annees, annuel.values, 1)
     # Incertitude de la pente : écart-type des résidus / sqrt(Sxx)
@@ -231,10 +233,15 @@ def main() -> None:
         f"de **{cycle.min():.1f} °C** en {MOIS[cycle.idxmin() - 1]} à "
         f"**{cycle.max():.1f} °C** en {MOIS[cycle.idxmax() - 1]}, soit une amplitude de "
         f"**{amplitude:.1f} °C**.\n",
-        f"La régression linéaire des moyennes annuelles sur {y1 - y0 + 1} années "
+        (f"Les années {annees_partielles} sont incomplètes dans le jeu téléchargé "
+         f"et sont **écartées du calcul de tendance** : une année tronquée aux "
+         f"premiers mois a une moyenne biaisée vers le haut, ce qui gonflerait "
+         f"artificiellement la pente.\n"
+         if annees_partielles else ""),
+        f"La régression linéaire des moyennes annuelles sur {len(annees):.0f} années "
         f"donne une tendance de **{pente:+.4f} ± {err_pente:.4f} °C/an**, soit "
         f"**{pente * 10:+.2f} °C par décennie**.\n",
-        f"Cette tendance est à manier avec précaution : {y1 - y0 + 1} années "
+        f"Cette tendance est à manier avec précaution : {len(annees):.0f} années "
         "constituent une série courte au regard de la variabilité interannuelle, "
         "et l'incertitude ci-dessus ne tient pas compte de l'autocorrélation "
         "temporelle, qui la sous-estime.\n",
