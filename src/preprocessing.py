@@ -1,72 +1,102 @@
-"""Étape 3 : exploration et nettoyage.
+"""Étape 1.2 à 1.3 : réduction spatiale, exploration, nettoyage.
 
-- lecture du NetCDF (ou du CSV de substitution) vers un DataFrame long
-- repérage et suppression des points en mer (NaN sur toute la série)
-- conversion des unités : K -> °C, J m-2 -> W m-2
-- résumés : distributions, corrélations
+- `coarsen` : agrégation par blocs 4×4 (moyenne) -> résolution 0.1° -> 0.4°
+- `to_long` : passage du cube NetCDF à un DataFrame (time, lat, lon, 12 variables)
+- `drop_sea_points` : les points entièrement NaN sont hors ERA5-Land (mer, hors zone)
+- `convert_units` : K -> °C, J m-2 -> W m-2, m -> mm/jour, Pa -> hPa
+- helpers d'EDA : taux de NaN, statistiques descriptives, corrélations
 """
 
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 from . import config as C
 
-SECONDS_PER_DAY = 86_400
+
+def open_raw(path=None) -> xr.Dataset:
+    ds = xr.open_dataset(path or C.FILE_RAW)
+    if "valid_time" in ds.coords:
+        ds = ds.rename({"valid_time": "time"})
+    if "expver" in ds.dims:                      # ERA5T mélangé aux données finales
+        ds = ds.mean("expver", skipna=True)
+    present = [v for v in C.SHORT_NAMES if v in ds.data_vars]
+    missing = set(C.SHORT_NAMES) - set(present)
+    if missing:
+        print(f"attention — variables absentes du NetCDF : {sorted(missing)}")
+    return ds[present]
 
 
-def load_raw() -> pd.DataFrame:
-    """DataFrame long : time, latitude, longitude, t2m, str."""
-    csv = C.DATA_RAW / "era5_monthly.csv"
-    if C.FILE_RAW.exists():
-        import xarray as xr
+def coarsen(ds: xr.Dataset, factor: int = C.COARSEN_FACTOR) -> xr.Dataset:
+    """Réduit la résolution spatiale d'un facteur `factor` par moyenne de blocs.
 
-        ds = xr.open_dataset(C.FILE_RAW)
-        if "valid_time" in ds.dims:
-            ds = ds.rename({"valid_time": "time"})
-        df = ds[["t2m", "str"]].to_dataframe().reset_index()
-    elif csv.exists():
-        df = pd.read_csv(csv, parse_dates=["time"])
-    else:
-        raise FileNotFoundError(
-            "aucune donnée brute — lancer `python -m src.download [--synthetic]`"
-        )
+    `boundary="trim"` écarte les lignes/colonnes en trop plutôt que de produire
+    un bloc partiel. La moyenne de xarray ignore les NaN : un bloc à cheval sur
+    la côte garde la moyenne de ses points terrestres, un bloc entièrement en
+    mer reste NaN et sera écarté par `drop_sea_points`.
+    """
+    if factor <= 1:
+        return ds
+    out = ds.coarsen(latitude=factor, longitude=factor, boundary="trim").mean()
+    before, after = ds["latitude"].size * ds["longitude"].size, out["latitude"].size * out["longitude"].size
+    print(f"réduction spatiale {factor}×{factor} : {before:,} -> {after:,} points de grille")
+    return out
 
-    keep = ["time", "latitude", "longitude", "t2m", "str"]
-    df = df[keep].copy()
+
+def to_long(ds: xr.Dataset) -> pd.DataFrame:
+    df = ds.to_dataframe().reset_index()
+    cols = ["time", "latitude", "longitude"] + [v for v in C.SHORT_NAMES if v in df]
+    df = df[cols].copy()
     df["time"] = pd.to_datetime(df["time"]).dt.to_period("M").dt.to_timestamp()
     return df.sort_values(["latitude", "longitude", "time"], ignore_index=True)
 
 
 def missing_report(df: pd.DataFrame) -> pd.DataFrame:
-    """Taux de NaN par point de grille — les points en mer sont à 100 %."""
-    g = df.groupby(["latitude", "longitude"])
-    rep = g["t2m"].apply(lambda s: s.isna().mean()).rename("nan_ratio").reset_index()
-    rep["type"] = np.where(rep["nan_ratio"] > 0.99, "mer",
-                           np.where(rep["nan_ratio"] > 0, "partiel", "terre"))
+    """Taux de NaN de t2m par point de grille : 100 % = point hors ERA5-Land."""
+    rep = (
+        df.groupby(["latitude", "longitude"])["t2m"]
+        .apply(lambda s: s.isna().mean())
+        .rename("nan_ratio")
+        .reset_index()
+    )
+    rep["type"] = np.select(
+        [rep["nan_ratio"] > 0.99, rep["nan_ratio"] > 0],
+        ["hors_terre", "partiel"],
+        default="terre",
+    )
     return rep
 
 
 def drop_sea_points(df: pd.DataFrame) -> pd.DataFrame:
-    """Retire les points entièrement manquants, interpole les trous isolés."""
+    """Écarte les points hors terre, interpole les trous isolés par point."""
     rep = missing_report(df)
-    land = rep.loc[rep["type"] != "mer", ["latitude", "longitude"]]
+    land = rep.loc[rep["type"] != "hors_terre", ["latitude", "longitude"]]
     out = df.merge(land, on=["latitude", "longitude"], how="inner")
-    out[["t2m", "str"]] = (
-        out.groupby(["latitude", "longitude"])[["t2m", "str"]]
+    value_cols = [c for c in C.SHORT_NAMES if c in out]
+    out[value_cols] = (
+        out.groupby(["latitude", "longitude"], sort=False)[value_cols]
         .transform(lambda s: s.interpolate(limit_direction="both"))
     )
-    return out.dropna(subset=["t2m", "str"]).reset_index(drop=True)
+    return out.dropna(subset=value_cols).reset_index(drop=True)
 
 
 def convert_units(df: pd.DataFrame) -> pd.DataFrame:
-    """t2m : kelvin -> °C. str : J m-2 (cumul journalier) -> W m-2."""
+    """Conversions idempotentes : relancer le script ne convertit pas deux fois."""
     out = df.copy()
-    if out["t2m"].median() > 150:          # idempotent : déjà en °C si < 150
-        out["t2m"] = out["t2m"] - 273.15
-    if out["str"].abs().median() > 1e4:
-        out["str"] = out["str"] / SECONDS_PER_DAY
+    for v in C.KELVIN_VARS:
+        if v in out and out[v].median() > 150:
+            out[v] = out[v] - 273.15
+    for v in C.FLUX_VARS:
+        if v in out and out[v].abs().median() > 1e4:
+            out[v] = out[v] / C.SECONDS_PER_DAY
+    for v in C.DEPTH_VARS:
+        if v in out and out[v].abs().median() < 1.0:
+            out[v] = out[v] * 1000.0
+    for v in C.PRESSURE_VARS:
+        if v in out and out[v].median() > 2000:
+            out[v] = out[v] / 100.0
     return out
 
 
@@ -78,23 +108,27 @@ def add_calendar(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def describe(df: pd.DataFrame) -> pd.DataFrame:
-    return df[["t2m", "str"]].describe().T
+    cols = [c for c in C.SHORT_NAMES if c in df]
+    return df[cols].describe().T
 
 
 def correlations(df: pd.DataFrame) -> pd.DataFrame:
-    cols = ["t2m", "str", "latitude", "longitude", "month"]
+    cols = [c for c in C.SHORT_NAMES if c in df]
     return df[cols].corr(numeric_only=True)
 
 
-def build() -> pd.DataFrame:
-    df = add_calendar(convert_units(drop_sea_points(load_raw())))
+def build(path=None) -> pd.DataFrame:
+    ds = coarsen(open_raw(path))
+    df = add_calendar(convert_units(drop_sea_points(to_long(ds))))
     C.DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_parquet(C.FILE_CLEAN, index=False)
-    print(f"écrit : {C.FILE_CLEAN}  ({len(df):,} lignes)")
+    n_pts = df.groupby(["latitude", "longitude"]).ngroups
+    print(f"écrit : {C.FILE_CLEAN}  ({len(df):,} lignes, {n_pts:,} points de grille, "
+          f"{df['year'].min()}–{df['year'].max()})")
     return df
 
 
 if __name__ == "__main__":
     d = build()
     print(describe(d).round(2))
-    print(correlations(d).round(3))
+    print(correlations(d).round(2))

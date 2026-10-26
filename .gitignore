@@ -24,3 +24,8 @@ data/raw/*
 data/processed/*
 !data/**/.gitkeep
 .ipynb_checkpoints/
+*.nc
+*.grib
+*.parquet
+reports/figures/*
+!**/.gitkeep

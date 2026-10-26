@@ -17,10 +17,14 @@ RUN pip install -r requirements.txt \
 COPY src/ src/
 COPY notebooks/ notebooks/
 COPY README.md .
-RUN mkdir -p data/raw data/processed
+RUN mkdir -p data/raw data/processed reports/figures
 
-# Jeu de substitution embarqué : l'image est utilisable sans clé CDS.
-RUN python -m src.download --synthetic && python -m src.preprocessing
+# Jeu de substitution prétraité : l'image est utilisable sans clé CDS.
+# Le NetCDF brut (~140 Mo) est retiré de l'image ; `python -m src.download
+# --synthetic` le régénère à l'identique si besoin.
+RUN python -m src.download --synthetic \
+    && python -m src.preprocessing \
+    && rm -f data/raw/*.nc
 
 EXPOSE 8888
 
