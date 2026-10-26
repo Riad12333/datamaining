@@ -18,3 +18,9 @@ target/
 
 .DS_Store
 *.log
+
+# Données : seules les arborescences sont versionnées
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+.ipynb_checkpoints/
