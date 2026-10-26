@@ -55,71 +55,11 @@ coûteuse en calcul.
 
 ## 2. Étape 1 — Analyse et prétraitement
 
-### 2.1 Réduction de la résolution spatiale
-
-L'énoncé impose de diviser la résolution par quatre. L'agrégation est faite par
-moyenne de blocs 4×4 (`xarray.Dataset.coarsen`), ce qui fait passer la grille de
-0,1° à 0,4°, soit de ‹N› à ‹M› points de grille.
-
-Deux choix techniques méritent d'être justifiés :
-
-- `boundary="trim"` écarte les lignes et colonnes surnuméraires plutôt que de
-  former un bloc partiel : un bloc de 2 points n'aurait pas la même variance
-  d'échantillonnage qu'un bloc de 16 et introduirait un biais en bordure ;
-- la moyenne ignore les valeurs manquantes, de sorte qu'un bloc à cheval sur la
-  côte conserve la moyenne de ses points terrestres au lieu d'être entièrement
-  annulé par un unique point marin.
-
-**Compromis.** L'agrégation divise par 16 le volume de données et lisse le bruit
-local, au prix d'une perte de détail orographique : à 0,4°, le contraste entre
-l'Atlas tellien et les hauts plateaux est fortement atténué.
-
-### 2.2 Valeurs manquantes
-
-ERA5-Land n'est défini que sur les terres émergées : les points marins sont
-manquants sur toute la période. Deux régimes sont donc distingués.
-
-| régime | critère | traitement |
-|---|---|---|
-| hors domaine | > 99 % de NaN sur `t2m` | point supprimé |
-| trou isolé | série par ailleurs complète | interpolation linéaire temporelle, au sein du point |
-
-Après nettoyage : ‹N› points de grille retenus, ‹M› lignes.
-
-**Figure 1** — `reports/figures/01_masque_terre_mer.png` : points conservés et
-points écartés.
-
-### 2.3 Conversion des unités
-
-| variables | de | vers | opération |
-|---|---|---|---|
-| `t2m`, `d2m` | K | °C | − 273,15 |
-| `slhf`, `ssr`, `str`, `sshf` | J m⁻² (cumul journalier) | W m⁻² | ÷ 86 400 |
-| `ro`, `e`, `tp` | m | mm/jour | × 1000 |
-| `sp` | Pa | hPa | ÷ 100 |
-
-Ces conversions ne changent rien aux performances des modèles ; elles servent
-l'interprétabilité. Elles sont implémentées de façon idempotente (test préalable
-sur la médiane), de sorte qu'une seconde exécution du script ne convertit pas
-deux fois.
-
-### 2.4 Analyse exploratoire
-
-**Tableau 1** — `reports/tables/01_statistiques_descriptives.md`.
-
-**Figure 2** — `reports/figures/01_distributions.png` : distribution des 12
-variables. ‹Commenter : asymétries, variables bornées comme `ro` et `tp`,
-bimodalité éventuelle liée au contraste Tell / Sahara.›
-
-**Figure 3** — `reports/figures/01_correlations.png`. ‹Commenter les corrélations
-notables : `d2m`/`t2m`, signe opposé de `ssr` et `str`, rôle de la saisonnalité
-comme facteur commun. Discuter la colinéarité et ses conséquences pour les
-modèles linéaires — sans effet pour les arbres.›
-
-**Figure 4** — `reports/figures/01_saisonnalite_tendance.png` : cycle saisonnier
-et moyenne annuelle. Tendance mesurée : ‹X› °C/an.
-
----
+> Section **rédigée et à jour**, générée depuis les données par
+> `python -m scripts.write_section1`. Contenu complet dans
+> [`sections/01_analyse_pretraitement.md`](sections/01_analyse_pretraitement.md) —
+> relancer le script après tout changement de jeu de données plutôt que de
+> corriger les chiffres à la main.
 
 ## 3. Étape 2 — Apprentissage supervisé
 

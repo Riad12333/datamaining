@@ -32,3 +32,5 @@ reports/tables/*
 reports/PROVENANCE.txt
 !**/.gitkeep
 logs/
+reports/sections/*
+!reports/sections/.gitkeep
