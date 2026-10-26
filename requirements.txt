@@ -8,3 +8,4 @@ xarray>=2024.3
 netCDF4>=1.6
 cdsapi>=0.7
 jupyterlab>=4.2
+tabulate>=0.9

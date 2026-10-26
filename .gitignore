@@ -28,5 +28,7 @@ data/processed/*
 *.grib
 *.parquet
 reports/figures/*
+reports/tables/*
+reports/PROVENANCE.txt
 !**/.gitkeep
 logs/
