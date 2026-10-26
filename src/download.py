@@ -20,11 +20,33 @@ from . import config as C
 MONTHS = [f"{m:02d}" for m in range(1, 13)]
 
 
+def check_credentials() -> None:
+    """Échoue tôt et clairement plutôt qu'au milieu d'un téléchargement."""
+    import os
+    from pathlib import Path
+
+    if os.environ.get("CDSAPI_KEY") or Path.home().joinpath(".cdsapirc").exists():
+        return
+    raise SystemExit(
+        "Aucune clé Copernicus CDS trouvée.\n"
+        "  1. compte sur https://cds.climate.copernicus.eu\n"
+        "  2. accepter les conditions du dataset ERA5-Land monthly (obligatoire)\n"
+        "  3. créer ~/.cdsapirc :\n"
+        "       url: https://cds.climate.copernicus.eu/api\n"
+        "       key: <votre clé>\n"
+        "  (ou exporter CDSAPI_URL et CDSAPI_KEY)"
+    )
+
+
 def download_cds(path=None) -> None:
+    check_credentials()
     import cdsapi
 
     path = path or C.FILE_RAW
     C.DATA_RAW.mkdir(parents=True, exist_ok=True)
+    print(f"requête CDS : {C.YEAR_START}-{C.YEAR_END}, {len(C.VARIABLES)} variables, "
+          f"emprise {C.AREA}\nla file d'attente Copernicus peut prendre de quelques "
+          f"minutes à plusieurs heures.")
     cdsapi.Client().retrieve(
         C.DATASET,
         {
