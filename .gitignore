@@ -27,12 +27,11 @@ data/processed/*
 *.nc
 *.grib
 *.parquet
-reports/figures/*
-reports/tables/*
-reports/PROVENANCE.txt
 !**/.gitkeep
 logs/
-reports/sections/*
-!reports/sections/.gitkeep
 reports/_perime_synthetique/
 reports/apercu/
+
+# Les livrables du rapport (figures, tableaux, sections rédigées) sont
+# versionnés : ils font 2,3 Mo et doivent être lisibles depuis GitHub.
+# Seuls les parquet, les aperçus CSV et la quarantaine restent exclus.
