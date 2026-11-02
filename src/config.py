@@ -22,15 +22,21 @@ PRODUCT_TYPE = "monthly_averaged_reanalysis"
 # produit les points NaN que l'étape de nettoyage doit écarter.
 AREA = [37.5, -9.0, 18.5, 12.5]
 
+NATIVE_GRID = 0.1          # résolution native ERA5-Land (degrés)
+# « Reduce the spatial resolution of the map by a factor of four by
+# aggregating neighboring grid points » : quatre pixels regroupés, soit des
+# blocs 2×2. Le nombre de points de grille est divisé par quatre.
+COARSEN_FACTOR = 2
+GRID = NATIVE_GRID * COARSEN_FACTOR        # résolution après agrégation
+
 # Zone d'étude = Algérie. L'emprise ci-dessus est un rectangle : elle mord sur
 # le Maroc, la Tunisie, la Libye, le Mali et le Niger. Le découpage se fait sur
 # le contour administratif (src/frontiere.py).
 CLIP_ALGERIE = True
-# Tolérance ajoutée au contour. À 0.4° une maille frontalière mesure ~44 km :
-# son centre peut tomber hors frontière alors qu'elle couvre du territoire.
-FRONTIERE_BUFFER = 0.2
-NATIVE_GRID = 0.1          # résolution native ERA5-Land (degrés)
-COARSEN_FACTOR = 4         # « reduce the spatial resolution by a factor of four »
+# Tolérance ajoutée au contour, fixée à une demi-maille : le centre d'une
+# maille frontalière peut tomber hors frontière alors qu'elle couvre du
+# territoire algérien. Se réajuste automatiquement si COARSEN_FACTOR change.
+FRONTIERE_BUFFER = GRID / 2
 
 YEAR_START = 2015
 # Années complètes uniquement : le clustering travaille sur 12 mois par année.

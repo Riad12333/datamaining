@@ -44,11 +44,11 @@ coûteuse en calcul.
 
 | | |
 |---|---|
-| Zone | Algérie, emprise `‹AREA de src/config.py›` |
+| Zone | Algérie, découpée sur le contour administratif ADM0 |
 | Période | 2015 → ‹dernière année complète› |
 | Source | ERA5-Land monthly averaged reanalysis (Copernicus CDS) |
 | Résolution native | 0,1° |
-| Résolution après agrégation | 0,4° (blocs 4×4) |
+| Résolution après agrégation | 0,2° (blocs 2×2, soit 4 pixels regroupés) |
 | Variables | 12 (11 explicatives + la cible `t2m`) |
 
 ---

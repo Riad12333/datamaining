@@ -57,8 +57,8 @@ python -m src.clustering
 
 `src/preprocessing.py` · `notebooks/01_analyse_pretraitement.ipynb`
 
-**Réduction spatiale.** `coarsen(latitude=4, longitude=4).mean()` agrège la
-grille par blocs 4×4 : 0.1° → 0.4°. `boundary="trim"` écarte les lignes et
+**Réduction spatiale.** `coarsen(latitude=2, longitude=2).mean()` agrège la
+grille par blocs 2×2, soit quatre pixels regroupés : 0.1° → 0.2°. `boundary="trim"` écarte les lignes et
 colonnes en trop plutôt que de former un bloc partiel. La moyenne de xarray
 ignore les NaN : un bloc à cheval sur la côte garde la moyenne de ses points
 terrestres, un bloc entièrement en mer reste NaN.

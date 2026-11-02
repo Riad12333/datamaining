@@ -144,7 +144,9 @@ def main() -> None:
     if g:
         parties += [
             "### 1.2 Réduction de la résolution spatiale\n",
-            f"L'énoncé impose de diviser la résolution spatiale par quatre. "
+            f"L'énoncé impose de réduire la résolution spatiale d'un facteur "
+            f"quatre en agrégeant les points voisins, soit **{C.COARSEN_FACTOR ** 2} "
+            f"pixels regroupés** par maille. "
             f"L'agrégation est réalisée par moyenne de blocs "
             f"{C.COARSEN_FACTOR}×{C.COARSEN_FACTOR} "
             f"(`xarray.Dataset.coarsen`), qui fait passer la grille de "
@@ -154,15 +156,15 @@ def main() -> None:
             f"(facteur {g['n_avant'] / g['n_apres']:.1f}).\n",
             "Deux choix techniques méritent justification.\n",
             "`boundary=\"trim\"` écarte les lignes et colonnes surnuméraires "
-            "plutôt que de former un bloc partiel en bordure : un bloc de deux "
-            "points n'a pas la même variance d'échantillonnage qu'un bloc de "
-            f"{C.COARSEN_FACTOR ** 2}, et le conserver introduirait un biais sur "
-            "le pourtour du domaine.\n",
+            "plutôt que de former un bloc partiel en bordure : un bloc incomplet "
+            f"n'a pas la même variance d'échantillonnage qu'un bloc de "
+            f"{C.COARSEN_FACTOR ** 2} points, et le conserver introduirait un "
+            "biais sur le pourtour du domaine.\n",
             "La moyenne ignore les valeurs manquantes. Un bloc à cheval sur la "
             "côte conserve donc la moyenne de ses seuls points terrestres au lieu "
             "d'être annulé par un unique point marin ; un bloc entièrement marin "
             "reste manquant et sera écarté à l'étape suivante.\n",
-            "**Compromis assumé.** L'agrégation divise le volume de données par "
+            "**Compromis assumé.** L'agrégation divise le nombre de points par "
             f"{C.COARSEN_FACTOR ** 2} et lisse le bruit local, au prix d'une perte "
             f"de détail orographique : à {g['res_apres']:.1f}°, le contraste entre "
             "l'Atlas tellien et les hauts plateaux est fortement atténué.\n",
