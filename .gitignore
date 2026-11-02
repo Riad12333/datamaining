@@ -34,3 +34,4 @@ reports/PROVENANCE.txt
 logs/
 reports/sections/*
 !reports/sections/.gitkeep
+reports/_perime_synthetique/

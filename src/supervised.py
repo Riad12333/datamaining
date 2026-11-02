@@ -20,6 +20,7 @@ import pandas as pd
 from . import config as C
 
 BASE_FEATURES = list(C.PREDICTORS.values())            # les 11 variables du sujet
+DERIVED_FEATURES = ["sshf_bilan"]      # substitut de sshf, cf. preprocessing
 CALENDAR_FEATURES = ["year", "month", "month_sin", "month_cos"]
 FEATURES = BASE_FEATURES + CALENDAR_FEATURES
 
@@ -32,10 +33,12 @@ def features_for(df: pd.DataFrame) -> list[str]:
     """
     presentes = [v for v in BASE_FEATURES if v in df.columns]
     absentes = [v for v in BASE_FEATURES if v not in df.columns]
+    derivees = [v for v in DERIVED_FEATURES if v in df.columns]
     if absentes:
         print(f"ATTENTION — variables explicatives absentes des données : {absentes}. "
-              f"{len(presentes)}/{len(BASE_FEATURES)} variables du sujet utilisées.")
-    return presentes + CALENDAR_FEATURES
+              f"{len(presentes)}/{len(BASE_FEATURES)} variables du sujet utilisées"
+              + (f", complétées par {derivees}." if derivees else "."))
+    return presentes + derivees + CALENDAR_FEATURES
 
 
 # --------------------------------------------------------------------------

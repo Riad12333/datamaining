@@ -55,6 +55,12 @@ DEPTH_VARS = ["ro", "e", "tp"]                     # m      -> mm/jour
 PRESSURE_VARS = ["sp"]                             # Pa     -> hPa
 SECONDS_PER_DAY = 86_400
 
+# Substitut de `sshf` par le bilan énergétique de surface, quand la variable
+# est absente de l'export CDS : ssr + str + slhf + sshf + G = 0, avec G (flux
+# dans le sol) négligeable en moyenne mensuelle. Mettre à False pour s'en tenir
+# strictement aux variables téléchargées.
+ADD_ENERGY_BALANCE = True
+
 # --- Étape 2 : supervisé ---------------------------------------------------
 HORIZON_MONTHS = 1          # cible : t2m du mois suivant
 N_BINS = 3                  # 3 intervalles de MÊME LARGEUR

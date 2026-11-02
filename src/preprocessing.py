@@ -107,6 +107,24 @@ def convert_units(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def add_energy_balance(df: pd.DataFrame) -> pd.DataFrame:
+    """Reconstitue la chaleur sensible depuis le bilan énergétique de surface.
+
+    ssr + str + slhf + sshf + G = 0, le flux dans le sol G étant négligeable en
+    moyenne mensuelle. Sert uniquement quand `sshf` manque dans l'export CDS :
+    si la vraie variable est présente, on n'y touche pas.
+    """
+    if not C.ADD_ENERGY_BALANCE or "sshf" in df.columns:
+        return df
+    if not {"ssr", "str", "slhf"} <= set(df.columns):
+        return df
+    out = df.copy()
+    out["sshf_bilan"] = -(out["ssr"] + out["str"] + out["slhf"])
+    print(f"[info] `sshf` absent : substitut `sshf_bilan` dérivé du bilan "
+          f"énergétique (moyenne {out['sshf_bilan'].mean():.1f} W m-2)")
+    return out
+
+
 def add_calendar(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["year"] = out["time"].dt.year
@@ -142,7 +160,8 @@ def correlations(df: pd.DataFrame) -> pd.DataFrame:
 
 def build(path=None) -> pd.DataFrame:
     ds = coarsen(open_raw(path))
-    df = add_calendar(convert_units(drop_sea_points(to_long(ds))))
+    df = add_calendar(add_energy_balance(
+        convert_units(drop_sea_points(to_long(ds)))))
     C.DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_parquet(C.FILE_CLEAN, index=False)
     n_pts = df.groupby(["latitude", "longitude"]).ngroups
