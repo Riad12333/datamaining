@@ -24,6 +24,20 @@ CALENDAR_FEATURES = ["year", "month", "month_sin", "month_cos"]
 FEATURES = BASE_FEATURES + CALENDAR_FEATURES
 
 
+def features_for(df: pd.DataFrame) -> list[str]:
+    """Variables effectivement disponibles, dans l'ordre nominal du sujet.
+
+    Un export CDS incomplet ne doit pas faire échouer la chaîne sur un KeyError
+    opaque : on travaille avec ce qui est là, et on dit ce qui manque.
+    """
+    presentes = [v for v in BASE_FEATURES if v in df.columns]
+    absentes = [v for v in BASE_FEATURES if v not in df.columns]
+    if absentes:
+        print(f"ATTENTION — variables explicatives absentes des données : {absentes}. "
+              f"{len(presentes)}/{len(BASE_FEATURES)} variables du sujet utilisées.")
+    return presentes + CALENDAR_FEATURES
+
+
 # --------------------------------------------------------------------------
 # Préparation
 # --------------------------------------------------------------------------
@@ -41,7 +55,8 @@ def build_frame(df: pd.DataFrame) -> pd.DataFrame:
     out["month_sin"] = np.sin(2 * np.pi * out["month"] / 12)
     out["month_cos"] = np.cos(2 * np.pi * out["month"] / 12)
 
-    return out.dropna(subset=FEATURES + ["t2m_target"]).reset_index(drop=True)
+    feats = features_for(out)
+    return out.dropna(subset=feats + ["t2m_target"]).reset_index(drop=True)
 
 
 def chronological_split(df: pd.DataFrame, test_years: int = C.TEST_YEARS):
@@ -147,9 +162,10 @@ def evaluate(train: pd.DataFrame, test: pd.DataFrame,
                                  confusion_matrix, f1_score)
 
     models = models or make_models()
+    feats = features_for(train)
     tr = subsample(train, sample_size)
-    Xtr, ytr = tr[FEATURES], tr["classe"]
-    Xte, yte = test[FEATURES], test["classe"]
+    Xtr, ytr = tr[feats], tr["classe"]
+    Xte, yte = test[feats], test["classe"]
 
     rows, fitted, reports = [], {}, {}
     for name, model in models.items():

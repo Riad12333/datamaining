@@ -124,7 +124,7 @@ def etape2(clean: pd.DataFrame):
 
     fig, ax = plt.subplots(figsize=(7, 5))
     pd.Series(fitted["random_forest"].feature_importances_,
-              index=sp.FEATURES).sort_values().plot.barh(ax=ax)
+              index=sp.features_for(train)).sort_values().plot.barh(ax=ax)
     ax.set_title("Importance des variables (forêt aléatoire)")
     save_fig(fig, "02_importance_variables")
     print(f"  [chiffre clé] meilleur modèle : {best} "
