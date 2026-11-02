@@ -89,6 +89,15 @@ def drop_sea_points(df: pd.DataFrame) -> pd.DataFrame:
     return out.dropna(subset=value_cols).reset_index(drop=True)
 
 
+def clip_algerie(df: pd.DataFrame) -> pd.DataFrame:
+    """Restreint la grille au territoire algérien (cf. src/frontiere.py)."""
+    if not C.CLIP_ALGERIE:
+        return df
+    from .frontiere import clip
+
+    return clip(df)
+
+
 def convert_units(df: pd.DataFrame) -> pd.DataFrame:
     """Conversions idempotentes : relancer le script ne convertit pas deux fois."""
     out = df.copy()
@@ -161,7 +170,7 @@ def correlations(df: pd.DataFrame) -> pd.DataFrame:
 def build(path=None) -> pd.DataFrame:
     ds = coarsen(open_raw(path))
     df = add_calendar(add_energy_balance(
-        convert_units(drop_sea_points(to_long(ds)))))
+        convert_units(clip_algerie(drop_sea_points(to_long(ds))))))
     C.DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_parquet(C.FILE_CLEAN, index=False)
     n_pts = df.groupby(["latitude", "longitude"]).ngroups

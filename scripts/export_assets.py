@@ -22,6 +22,7 @@ import seaborn as sns
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src import clustering as cl              # noqa: E402
+from src import frontiere as fr               # noqa: E402
 from src import config as C                   # noqa: E402
 from src import preprocessing as pp           # noqa: E402
 from src import supervised as sp              # noqa: E402
@@ -53,13 +54,7 @@ def etape1(clean: pd.DataFrame) -> None:
     save_table(pp.describe(clean).round(2).reset_index().rename(columns={"index": "variable"}),
                "01_statistiques_descriptives")
 
-    rep = pp.missing_report(clean)
-    fig, ax = plt.subplots(figsize=(8, 5))
-    for t, sub in rep.groupby("type"):
-        ax.scatter(sub["longitude"], sub["latitude"], s=16, label=t)
-    ax.set(xlabel="longitude", ylabel="latitude", title="Points de grille retenus après nettoyage")
-    ax.legend()
-    save_fig(fig, "01_masque_terre_mer")
+    figure_masque(clean)
 
     fig, axes = plt.subplots(3, 4, figsize=(16, 9))
     for ax, v in zip(axes.ravel(), cols):
@@ -92,6 +87,53 @@ def etape1(clean: pd.DataFrame) -> None:
     fig.tight_layout()
     save_fig(fig, "01_saisonnalite_tendance")
     print(f"  [chiffre clé] tendance de t2m : {pente[0]:+.4f} °C/an")
+
+
+def figure_masque(clean: pd.DataFrame) -> None:
+    """Grille complète : mer, pays voisins, mailles frontalières, Algérie retenue.
+
+    Montrer ce qui est écarté est plus informatif que de ne montrer que ce qui
+    est gardé : c'est la justification visuelle du découpage sur le contour.
+    """
+    from shapely.geometry import MultiPolygon
+
+    brut = pp.to_long(pp.coarsen(pp.open_raw()))
+    rep = pp.missing_report(brut)
+    terre = rep[rep["type"] != "hors_terre"][["latitude", "longitude"]].reset_index(drop=True)
+    mer = rep[rep["type"] == "hors_terre"]
+    zones = fr.classer(terre)
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    contour = fr.telecharger_contour()
+    polys = contour.geoms if isinstance(contour, MultiPolygon) else [contour]
+    for poly in polys:
+        x, y = poly.exterior.xy
+        ax.plot(x, y, color="black", lw=1.1, zorder=5, label="frontière algérienne")
+
+    styles = {
+        "hors_terre": ("#cfd8dc", "mer / hors ERA5-Land (écarté)"),
+        "hors_algerie": ("#ef9a9a", "pays voisins (écarté)"),
+        "frontalier": ("#ffb74d", f"maille frontalière (gardée, buffer {C.FRONTIERE_BUFFER}°)"),
+        "algerie": ("#1565c0", "Algérie (gardé)"),
+    }
+    ax.scatter(mer["longitude"], mer["latitude"], s=10, c=styles["hors_terre"][0],
+               label=styles["hors_terre"][1])
+    for z in ("hors_algerie", "frontalier", "algerie"):
+        sub = zones[zones["zone"] == z]
+        c, lab = styles[z]
+        ax.scatter(sub["longitude"], sub["latitude"], s=14, c=c, label=f"{lab} — {len(sub)}")
+
+    ax.set(xlabel="longitude", ylabel="latitude",
+           title="Points de grille : sélection de la zone d'étude")
+    ax.legend(loc="lower left", fontsize=8, framealpha=0.95)
+    ax.set_aspect("equal")
+    save_fig(fig, "01_masque_terre_mer")
+
+    tab = zones["zone"].value_counts().rename("points").reset_index()
+    tab.columns = ["zone", "points"]
+    tab.loc[len(tab)] = ["mer_hors_era5land", len(mer)]
+    tab["part"] = (tab["points"] / tab["points"].sum()).round(3)
+    save_table(tab, "01_selection_zone")
 
 
 def etape2(clean: pd.DataFrame):

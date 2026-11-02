@@ -21,6 +21,14 @@ PRODUCT_TYPE = "monthly_averaged_reanalysis"
 # Emprise Algérie (Nord, Ouest, Sud, Est) avec une marge : la marge maritime
 # produit les points NaN que l'étape de nettoyage doit écarter.
 AREA = [37.5, -9.0, 18.5, 12.5]
+
+# Zone d'étude = Algérie. L'emprise ci-dessus est un rectangle : elle mord sur
+# le Maroc, la Tunisie, la Libye, le Mali et le Niger. Le découpage se fait sur
+# le contour administratif (src/frontiere.py).
+CLIP_ALGERIE = True
+# Tolérance ajoutée au contour. À 0.4° une maille frontalière mesure ~44 km :
+# son centre peut tomber hors frontière alors qu'elle couvre du territoire.
+FRONTIERE_BUFFER = 0.2
 NATIVE_GRID = 0.1          # résolution native ERA5-Land (degrés)
 COARSEN_FACTOR = 4         # « reduce the spatial resolution by a factor of four »
 
@@ -79,6 +87,7 @@ RANDOM_STATE = 42
 
 # --- Fichiers --------------------------------------------------------------
 FILE_RAW = DATA_RAW / "era5_land_algeria.nc"
+FILE_FRONTIERE = DATA_RAW / "dza_adm0.geojson"
 FILE_CLEAN = DATA_PROCESSED / "era5_clean.parquet"
 FILE_SUPERVISED = DATA_PROCESSED / "supervised.parquet"
 FILE_UNSUPERVISED = DATA_PROCESSED / "unsupervised.parquet"
