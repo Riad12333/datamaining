@@ -42,6 +42,16 @@ réchauffement) permet de faire tourner toute la chaîne :
 python -m src.download --synthetic
 ```
 
+## Inspecter les jeux de données
+
+```bash
+python -m scripts.voir                    # liste les parquet : lignes, colonnes, taille
+python -m scripts.voir supervised         # schéma, aperçu, statistiques, répartitions
+python -m scripts.voir clean -n 20        # 20 lignes
+python -m scripts.voir clean -q "year == 2025 and month == 7" -c "latitude,longitude,t2m"
+python -m scripts.voir supervised --csv   # aperçu CSV dans reports/apercu/
+```
+
 ## Chaîne complète
 
 ```bash
