@@ -21,22 +21,8 @@ PRODUCT_TYPE = "monthly_averaged_reanalysis"
 # Emprise Algérie (Nord, Ouest, Sud, Est) avec une marge : la marge maritime
 # produit les points NaN que l'étape de nettoyage doit écarter.
 AREA = [37.5, -9.0, 18.5, 12.5]
-
 NATIVE_GRID = 0.1          # résolution native ERA5-Land (degrés)
-# « Reduce the spatial resolution of the map by a factor of four by
-# aggregating neighboring grid points » : quatre pixels regroupés, soit des
-# blocs 2×2. Le nombre de points de grille est divisé par quatre.
-COARSEN_FACTOR = 2
-GRID = NATIVE_GRID * COARSEN_FACTOR        # résolution après agrégation
-
-# Zone d'étude = Algérie. L'emprise ci-dessus est un rectangle : elle mord sur
-# le Maroc, la Tunisie, la Libye, le Mali et le Niger. Le découpage se fait sur
-# le contour administratif (src/frontiere.py).
-CLIP_ALGERIE = True
-# Tolérance ajoutée au contour, fixée à une demi-maille : le centre d'une
-# maille frontalière peut tomber hors frontière alors qu'elle couvre du
-# territoire algérien. Se réajuste automatiquement si COARSEN_FACTOR change.
-FRONTIERE_BUFFER = GRID / 2
+COARSEN_FACTOR = 2         # consigne prof : grouper 2x2 = 4 pixels ensemble (0.1° -> 0.2°)
 
 YEAR_START = 2015
 # Années complètes uniquement : le clustering travaille sur 12 mois par année.
@@ -69,12 +55,6 @@ DEPTH_VARS = ["ro", "e", "tp"]                     # m      -> mm/jour
 PRESSURE_VARS = ["sp"]                             # Pa     -> hPa
 SECONDS_PER_DAY = 86_400
 
-# Substitut de `sshf` par le bilan énergétique de surface, quand la variable
-# est absente de l'export CDS : ssr + str + slhf + sshf + G = 0, avec G (flux
-# dans le sol) négligeable en moyenne mensuelle. Mettre à False pour s'en tenir
-# strictement aux variables téléchargées.
-ADD_ENERGY_BALANCE = True
-
 # --- Étape 2 : supervisé ---------------------------------------------------
 HORIZON_MONTHS = 1          # cible : t2m du mois suivant
 N_BINS = 3                  # 3 intervalles de MÊME LARGEUR
@@ -93,7 +73,7 @@ RANDOM_STATE = 42
 
 # --- Fichiers --------------------------------------------------------------
 FILE_RAW = DATA_RAW / "era5_land_algeria.nc"
-FILE_FRONTIERE = DATA_RAW / "dza_adm0.geojson"
+FILE_DZ_JSON = ROOT / "data" / "dz.json"
 FILE_CLEAN = DATA_PROCESSED / "era5_clean.parquet"
 FILE_SUPERVISED = DATA_PROCESSED / "supervised.parquet"
 FILE_UNSUPERVISED = DATA_PROCESSED / "unsupervised.parquet"

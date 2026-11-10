@@ -42,16 +42,6 @@ réchauffement) permet de faire tourner toute la chaîne :
 python -m src.download --synthetic
 ```
 
-## Inspecter les jeux de données
-
-```bash
-python -m scripts.voir                    # liste les parquet : lignes, colonnes, taille
-python -m scripts.voir supervised         # schéma, aperçu, statistiques, répartitions
-python -m scripts.voir clean -n 20        # 20 lignes
-python -m scripts.voir clean -q "year == 2025 and month == 7" -c "latitude,longitude,t2m"
-python -m scripts.voir supervised --csv   # aperçu CSV dans reports/apercu/
-```
-
 ## Chaîne complète
 
 ```bash
@@ -68,7 +58,7 @@ python -m src.clustering
 `src/preprocessing.py` · `notebooks/01_analyse_pretraitement.ipynb`
 
 **Réduction spatiale.** `coarsen(latitude=2, longitude=2).mean()` agrège la
-grille par blocs 2×2, soit quatre pixels regroupés : 0.1° → 0.2°. `boundary="trim"` écarte les lignes et
+grille par blocs 2×2 (4 pixels) : 0.1° → 0.2°. `boundary="trim"` écarte les lignes et
 colonnes en trop plutôt que de former un bloc partiel. La moyenne de xarray
 ignore les NaN : un bloc à cheval sur la côte garde la moyenne de ses points
 terrestres, un bloc entièrement en mer reste NaN.

@@ -1,4 +1,4 @@
 intervalle,borne_inf_C,borne_sup_C,part_train,part_test
-froid,-inf,14.33,0.177,0.129
-tempere,14.33,27.74,0.434,0.415
-chaud,27.74,inf,0.388,0.456
+froid,-inf,14.33,0.178,0.129
+tempere,14.33,27.74,0.433,0.414
+chaud,27.74,inf,0.389,0.457

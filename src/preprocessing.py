@@ -60,8 +60,33 @@ def to_long(ds: xr.Dataset) -> pd.DataFrame:
     return df.sort_values(["latitude", "longitude", "time"], ignore_index=True)
 
 
+def load_algeria_paths(path=None) -> list:
+    """Charge les polygones des frontières algériennes depuis dz.json."""
+    import json
+    import matplotlib.path as mpath
+
+    p = path or getattr(C, "FILE_DZ_JSON", C.ROOT / "data" / "dz.json")
+    if not p.exists():
+        return []
+    with open(p, "r", encoding="utf-8") as f:
+        gj = json.load(f)
+    paths = []
+    for feat in gj.get("features", []):
+        geom = feat.get("geometry", {})
+        gtype = geom.get("type")
+        coords = geom.get("coordinates", [])
+        if gtype == "Polygon":
+            for ring in coords:
+                paths.append(mpath.Path(ring))
+        elif gtype == "MultiPolygon":
+            for poly in coords:
+                for ring in poly:
+                    paths.append(mpath.Path(ring))
+    return paths
+
+
 def missing_report(df: pd.DataFrame) -> pd.DataFrame:
-    """Taux de NaN de t2m par point de grille : 100 % = point hors ERA5-Land."""
+    """Taux de NaN de t2m par point de grille et délimitation frontière Algérie."""
     rep = (
         df.groupby(["latitude", "longitude"])["t2m"]
         .apply(lambda s: s.isna().mean())
@@ -73,13 +98,20 @@ def missing_report(df: pd.DataFrame) -> pd.DataFrame:
         ["hors_terre", "partiel"],
         default="terre",
     )
+    paths = load_algeria_paths()
+    if paths:
+        pts = rep[["longitude", "latitude"]].to_numpy()
+        inside = np.zeros(len(pts), dtype=bool)
+        for p in paths:
+            inside |= p.contains_points(pts)
+        rep.loc[~inside & (rep["type"] != "hors_terre"), "type"] = "hors_algerie"
     return rep
 
 
 def drop_sea_points(df: pd.DataFrame) -> pd.DataFrame:
-    """Écarte les points hors terre, interpole les trous isolés par point."""
+    """Écarte les points hors terre et hors Algérie, interpole les trous isolés par point."""
     rep = missing_report(df)
-    land = rep.loc[rep["type"] != "hors_terre", ["latitude", "longitude"]]
+    land = rep.loc[rep["type"].isin(["terre", "partiel"]), ["latitude", "longitude"]]
     out = df.merge(land, on=["latitude", "longitude"], how="inner")
     value_cols = [c for c in C.SHORT_NAMES if c in out]
     out[value_cols] = (
@@ -87,15 +119,6 @@ def drop_sea_points(df: pd.DataFrame) -> pd.DataFrame:
         .transform(lambda s: s.interpolate(limit_direction="both"))
     )
     return out.dropna(subset=value_cols).reset_index(drop=True)
-
-
-def clip_algerie(df: pd.DataFrame) -> pd.DataFrame:
-    """Restreint la grille au territoire algérien (cf. src/frontiere.py)."""
-    if not C.CLIP_ALGERIE:
-        return df
-    from .frontiere import clip
-
-    return clip(df)
 
 
 def convert_units(df: pd.DataFrame) -> pd.DataFrame:
@@ -113,24 +136,6 @@ def convert_units(df: pd.DataFrame) -> pd.DataFrame:
     for v in C.PRESSURE_VARS:
         if v in out and out[v].median() > 2000:
             out[v] = out[v] / 100.0
-    return out
-
-
-def add_energy_balance(df: pd.DataFrame) -> pd.DataFrame:
-    """Reconstitue la chaleur sensible depuis le bilan énergétique de surface.
-
-    ssr + str + slhf + sshf + G = 0, le flux dans le sol G étant négligeable en
-    moyenne mensuelle. Sert uniquement quand `sshf` manque dans l'export CDS :
-    si la vraie variable est présente, on n'y touche pas.
-    """
-    if not C.ADD_ENERGY_BALANCE or "sshf" in df.columns:
-        return df
-    if not {"ssr", "str", "slhf"} <= set(df.columns):
-        return df
-    out = df.copy()
-    out["sshf_bilan"] = -(out["ssr"] + out["str"] + out["slhf"])
-    print(f"[info] `sshf` absent : substitut `sshf_bilan` dérivé du bilan "
-          f"énergétique (moyenne {out['sshf_bilan'].mean():.1f} W m-2)")
     return out
 
 
@@ -169,8 +174,7 @@ def correlations(df: pd.DataFrame) -> pd.DataFrame:
 
 def build(path=None) -> pd.DataFrame:
     ds = coarsen(open_raw(path))
-    df = add_calendar(add_energy_balance(
-        convert_units(clip_algerie(drop_sea_points(to_long(ds))))))
+    df = add_calendar(convert_units(drop_sea_points(to_long(ds))))
     C.DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
     df.to_parquet(C.FILE_CLEAN, index=False)
     n_pts = df.groupby(["latitude", "longitude"]).ngroups

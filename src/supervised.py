@@ -20,32 +20,27 @@ import pandas as pd
 from . import config as C
 
 BASE_FEATURES = list(C.PREDICTORS.values())            # les 11 variables du sujet
-DERIVED_FEATURES = ["sshf_bilan"]      # substitut de sshf, cf. preprocessing
 CALENDAR_FEATURES = ["year", "month", "month_sin", "month_cos"]
 FEATURES = BASE_FEATURES + CALENDAR_FEATURES
-
-
-def features_for(df: pd.DataFrame) -> list[str]:
-    """Variables effectivement disponibles, dans l'ordre nominal du sujet.
-
-    Un export CDS incomplet ne doit pas faire échouer la chaîne sur un KeyError
-    opaque : on travaille avec ce qui est là, et on dit ce qui manque.
-    """
-    presentes = [v for v in BASE_FEATURES if v in df.columns]
-    absentes = [v for v in BASE_FEATURES if v not in df.columns]
-    derivees = [v for v in DERIVED_FEATURES if v in df.columns]
-    if absentes:
-        print(f"ATTENTION — variables explicatives absentes des données : {absentes}. "
-              f"{len(presentes)}/{len(BASE_FEATURES)} variables du sujet utilisées"
-              + (f", complétées par {derivees}." if derivees else "."))
-    return presentes + derivees + CALENDAR_FEATURES
 
 
 # --------------------------------------------------------------------------
 # Préparation
 # --------------------------------------------------------------------------
+def sync_features(df: pd.DataFrame) -> list[str]:
+    """Adapte FEATURES aux variables effectivement présentes dans le DataFrame."""
+    global FEATURES
+    available = [c for c in BASE_FEATURES if c in df.columns]
+    missing = set(BASE_FEATURES) - set(available)
+    if missing:
+        print(f"[info supervisé] variables absentes ignorées : {sorted(missing)}")
+    FEATURES = available + CALENDAR_FEATURES
+    return FEATURES
+
+
 def build_frame(df: pd.DataFrame) -> pd.DataFrame:
     """Décale t2m d'un mois à l'intérieur de chaque point de grille."""
+    feats = sync_features(df)
     out = df.sort_values(["latitude", "longitude", "time"]).copy()
     g = out.groupby(["latitude", "longitude"], sort=False)
 
@@ -58,7 +53,6 @@ def build_frame(df: pd.DataFrame) -> pd.DataFrame:
     out["month_sin"] = np.sin(2 * np.pi * out["month"] / 12)
     out["month_cos"] = np.cos(2 * np.pi * out["month"] / 12)
 
-    feats = features_for(out)
     return out.dropna(subset=feats + ["t2m_target"]).reset_index(drop=True)
 
 
@@ -165,10 +159,9 @@ def evaluate(train: pd.DataFrame, test: pd.DataFrame,
                                  confusion_matrix, f1_score)
 
     models = models or make_models()
-    feats = features_for(train)
     tr = subsample(train, sample_size)
-    Xtr, ytr = tr[feats], tr["classe"]
-    Xte, yte = test[feats], test["classe"]
+    Xtr, ytr = tr[FEATURES], tr["classe"]
+    Xte, yte = test[FEATURES], test["classe"]
 
     rows, fitted, reports = [], {}, {}
     for name, model in models.items():
