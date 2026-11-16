@@ -1,0 +1,33 @@
+# Written by /git init — edit freely.
+node_modules/
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+dist/
+build/
+.next/
+target/
+
+# Secrets. /commit refuses to stage these anyway; this keeps them out of sight.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+.DS_Store
+*.log
+
+# Données volumineuses exclues de git
+data/raw/*
+data/processed/*.parquet
+data/processed/*.nc
+!data/**/.gitkeep
+!data/processed/features.json
+!data/processed/scaler.joblib
+.ipynb_checkpoints/
+*.nc
+*.grib
+*.parquet
+logs/

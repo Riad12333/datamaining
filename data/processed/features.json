@@ -1,0 +1,40 @@
+{
+  "features": [
+    "d2m",
+    "ssr",
+    "str",
+    "u10",
+    "v10",
+    "sp",
+    "wind_speed",
+    "rnet",
+    "tp_log",
+    "e_log",
+    "year",
+    "month",
+    "month_sin",
+    "month_cos"
+  ],
+  "dropped_features": [
+    "slhf",
+    "ro"
+  ],
+  "extracted_features": [
+    "wind_speed",
+    "rnet"
+  ],
+  "cutoff_year_test": 2025,
+  "edges_C": [
+    0.91,
+    14.33,
+    27.74,
+    41.16
+  ],
+  "classes": [
+    "froid",
+    "tempere",
+    "chaud"
+  ],
+  "n_train": 642120,
+  "n_test": 107020
+}
