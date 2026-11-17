@@ -134,10 +134,13 @@ def convert_units(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def correct_ecmwf_anomalies(df: pd.DataFrame, save_table_path: Path | None = C.FILE_ANOMALIES_CSV) -> pd.DataFrame:
-    """Corrige le bug officiel ECMWF CDS (septembre 2022 à février 2024) sur les flux cumulés.
+    """Corrige le problème connu d'ECMWF (variables cumulées, 2022-09 à 2024-02, non corrigé dans le produit standard).
 
-    Les variables cumulées (ssr, str, slhf, e, ro, tp) ont été tronquées à 12h au lieu de 24h.
-    On applique le ratio climatologique spatial mensuel sur chaque mois affecté.
+    La cause exacte n'étant pas documentée officiellement, on applique la méthode de secours :
+    un facteur d'échelle CONSTANT par variable (inverse de la médiane des 18 ratios mensuels,
+    calculé sur les années saines du train < 2025 hors période d'anomalie).
+    Ce facteur est appliqué uniformément à tous les points et tous les mois de la fenêtre,
+    ce qui évite la circularité (moyenne = normale) et préserve la dispersion et les anomalies réelles.
     """
     out = df.copy()
     vars_present = [v for v in C.SHORT_NAMES if v in out.columns]
@@ -146,7 +149,7 @@ def correct_ecmwf_anomalies(df: pd.DataFrame, save_table_path: Path | None = C.F
     out["_year"] = out["time"].dt.year
     out["_month"] = out["time"].dt.month
 
-    # Climatologie normale (années train hors période anomalie)
+    # Climatologie normale sur le Train sain (< 2025 hors période anomalie)
     normal_mask = (out["_year"] < 2025) & ~((out["time"] >= C.ANOMALY_START) & (out["time"] <= C.ANOMALY_END))
     clim_mean = out[normal_mask].groupby("_month")[accum_vars].mean()
     clim_std = out[normal_mask].groupby("_month")[accum_vars].std()
@@ -154,32 +157,57 @@ def correct_ecmwf_anomalies(df: pd.DataFrame, save_table_path: Path | None = C.F
     affected_mask = (out["time"] >= C.ANOMALY_START) & (out["time"] <= C.ANOMALY_END)
     affected_times = sorted(out.loc[affected_mask, "time"].unique())
 
-    log_rows = []
-    n_pts = out.groupby(["latitude", "longitude"]).ngroups
-
+    # Étape 1 : Calcul des ratios observés / normale pour chaque mois et variable
+    monthly_data = []
+    ratios_by_var = {v: [] for v in accum_vars}
     for t in affected_times:
         t_mask = (out["time"] == t)
         m = pd.to_datetime(t).month
         for v in accum_vars:
-            actual_mean = float(out.loc[t_mask, v].mean())
+            act_mean = float(out.loc[t_mask, v].mean())
             norm_mean = float(clim_mean.loc[m, v])
-            norm_std = float(clim_std.loc[m, v])
-            z_score = (actual_mean - norm_mean) / norm_std if norm_std != 0 else 0
-            ratio = actual_mean / norm_mean if norm_mean != 0 else 1.0
-
-            factor = norm_mean / actual_mean if actual_mean != 0 else 1.0
-            out.loc[t_mask, v] = out.loc[t_mask, v] * factor
-
-            log_rows.append({
-                "variable": v,
-                "mois": pd.to_datetime(t).strftime("%Y-%m"),
-                "valeur_brute": round(actual_mean, 4),
-                "normale_mensuelle": round(norm_mean, 4),
-                "z_score": round(z_score, 2),
-                "ratio_val_sur_normale": round(ratio, 3),
-                "regle_appliquee": f"Correction facteur echelle ECMWF (x{factor:.3f})",
-                "n_valeurs_modifiees": n_pts
+            s = float(clim_std.loc[m, v])
+            z = (act_mean - norm_mean) / s if s != 0 else 0.0
+            r = act_mean / norm_mean if norm_mean != 0 else 1.0
+            ratios_by_var[v].append(r)
+            monthly_data.append({
+                "time": t, "month": m, "var": v,
+                "act_mean": act_mean, "norm_mean": norm_mean,
+                "z_score": z, "ratio": r
             })
+
+    # Étape 2 : Calcul du facteur constant = 1.0 / médiane(ratios) par variable
+    const_factors = {}
+    for v in accum_vars:
+        med_r = float(np.median(ratios_by_var[v]))
+        const_factors[v] = 1.0 / med_r if med_r != 0 else 1.0
+
+    # Étape 3 : Application du facteur constant global sur la fenêtre
+    n_pts = out.groupby(["latitude", "longitude"]).ngroups
+    for v in accum_vars:
+        out.loc[affected_mask, v] = out.loc[affected_mask, v] * const_factors[v]
+
+    # Étape 4 : Journalisation des 108 mois-variables avec ratios avant et après correction
+    log_rows = []
+    for item in monthly_data:
+        v = item["var"]
+        t = item["time"]
+        f_const = const_factors[v]
+        val_corr = item["act_mean"] * f_const
+        ratio_corr = val_corr / item["norm_mean"] if item["norm_mean"] != 0 else 1.0
+        log_rows.append({
+            "variable": v,
+            "mois": pd.to_datetime(t).strftime("%Y-%m"),
+            "valeur_brute": round(item["act_mean"], 4),
+            "normale_mensuelle": round(item["norm_mean"], 4),
+            "z_score": round(item["z_score"], 2),
+            "ratio_val_sur_normale": round(item["ratio"], 4),
+            "facteur_constant_applique": round(f_const, 4),
+            "valeur_corrigee": round(val_corr, 4),
+            "ratio_corrige_sur_normale": round(ratio_corr, 4),
+            "commentaire": "problème connu d'ECMWF (variables cumulées, 2022-09 à 2024-02, non corrigé dans le produit standard)",
+            "n_valeurs_modifiees": n_pts
+        })
 
     out = out.drop(columns=["_year", "_month"])
 

@@ -1,3 +1,4 @@
+
 # Guide de Présentation — Étape 1 : EDA & Prétraitement Fiabilisé
 **Projet Data Mining — USTHB (M2 SII)**  
 **Dataset : ERA5-Land Algérie (2015 → 2026)**
@@ -14,7 +15,7 @@
 ```
 [ ACTE 1 : Cadre & Frontière ]   --> 2×2 pixels, masque Algérie, 5 351 points, 0 NaN
                  ↓
-[ ACTE 2 : Bug ECMWF 2022-2024]  --> Détection de la rupture 12h/24h, correction d'échelle
+[ ACTE 2 : Problème ECMWF 2022-2024] --> Problème connu (variables cumulées), facteur constant par variable
                  ↓
 [ ACTE 3 : Sélection & Features] --> Spearman, retrait slhf & ro, log1p(tp), wind_speed & rnet
                  ↓
@@ -30,7 +31,7 @@ Voici comment relier chaque fichier généré à l'argumentation devant la prof 
 | Étape / Question prof | Fichier Tableau (`reports/tables/`) | Fichier Figure (`reports/figures/`) | Message clé à donner à l'oral |
 |---|---|---|---|
 | **1. Choix du masque spatial (Point a)** | `01_comparaison_methodes_selection.csv` | `01_comparaison_methodes_frontiere.png` | *« La Méthode A laissait des trous ou ignorait la frontière. Avec la Méthode B (`count_dz >= 2`), on garde 5 351 points de grille avec strictement 0 NaN. »* |
-| **2. Données erronées 2022–2024 (Point d)** | `01_anomalies.csv` (108 corrections) | `01_series_temporelles_brutes.png`<br>`01_series_temporelles_corrigees.png` | *« Les flux cumulés ont été divisés par 2 par Copernicus (bug 12h/24h). Nous avons restauré la continuité saisonnière par un ratio climatologique sans jeter 18 mois de données. »* |
+| **2. Données erronées 2022–2024 (Point d)** | `01_anomalies.csv` (108 corrections) | `01_series_temporelles_brutes.png`<br>`01_series_temporelles_corrigees.png` | *« Il s'agit d'un problème connu d'ECMWF (variables cumulées, 2022-09 à 2024-02, non corrigé dans le produit standard). Nous appliquons un facteur constant par variable calculé sur le train sain, évitant la méthode circulaire et préservant les anomalies réelles mois par mois. »* |
 | **3. Variabilité & Asymétrie (Points b & c)** | `01_variabilite_asymetrie.csv` | `01_asymetrie_avant_apres.png`<br>`01_boxplots_mensuels.png` | *« `ro` a 77.5% de zéros (désert). La pluie `tp` est très asymétrique : le log1p compresse la traîne droite sans supprimer les vrais orages sahariens. »* |
 | **4. Corrélations (Point e)** | `01_correlations_spearman.csv`<br>`01_fortes_correlations.csv` | `01_correlations_spearman.png` | *« Calculé avec Spearman (non-linéaire). Élimination de `slhf` (colinéarité 1.000 avec `e`) et de `ro` (0.976 avec `tp`). »* |
 | **5. Cible & Classes (Points 2, 4, 6)** | `01_repartition_classes.csv`<br>`01_repartition_classes_par_annee.csv` | `02_bornes_et_classes.csv` | *« Bornes équi-largeur calculées sur le Train seul ([0.91, 14.33, 27.74, 41.16] °C). Train = 642k lignes, Test = 107k lignes. »* |
@@ -49,7 +50,7 @@ Voici comment relier chaque fichier généré à l'argumentation devant la prof 
 
 ### Q3. « Comment avez-vous traité les données erronées de 2022–2024 ? »
 > **Réponse :**  
-> *« C'est un bug officiel répertorié sur le forum du Copernicus Climate Data Store : les flux sur 24h ont été tronqués à 12h entre septembre 2022 et février 2024. Supprimer 18 mois aurait créé un trou temporel de 96 318 lignes. Nous avons donc appliqué un facteur d'échelle mensuel calé sur les années historiques saines pour restaurer l'amplitude physique normale. »*
+> *« C'est un problème connu d'ECMWF (variables cumulées, 2022-09 à 2024-02, non corrigé dans le produit standard). La cause exacte n'étant pas documentée officiellement, nous appliquons un facteur d'échelle constant par variable (l'inverse de la médiane des ratios calculée sur les années saines du train). Cette méthode de secours évite la circularité d'une correction mois par mois et préserve la dispersion et les anomalies climatiques réelles. »*
 
 ### Q4. « Y a-t-il un risque de fuite de données (*Data Leakage*) dans votre prétraitement ? »
 > **Réponse :**  
